@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1e293b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>単語カード</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div id="progress">- / -</div>
+  <div class="header-right">
+    <label class="toggle"><input type="checkbox" id="unlearnedOnly" checked> 未学習のみ</label>
+    <button id="reload" aria-label="同期">⟳</button>
+  </div>
+</header>
+
+<main id="stage">
+  <div id="card" class="card">
+    <div class="face front">
+      <div class="word" id="en"></div>
+      <div class="ipa" id="ipa"></div>
+      <div class="hint">タップで裏返す</div>
+    </div>
+    <div class="face back">
+      <div class="word ja" id="ja"></div>
+      <div class="example" id="example"></div>
+      <div class="meta" id="meta"></div>
+    </div>
+  </div>
+  <div id="empty" hidden>表示できる単語がありません 🎉</div>
+</main>
+
+<footer>
+  <button id="prev" class="nav">‹</button>
+  <button id="done" class="done">覚えた ✓</button>
+  <button id="next" class="nav">›</button>
+</footer>
+
+<div id="toast"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
