@@ -16,8 +16,8 @@
 <header>
   <div id="progress">- / -</div>
   <div class="header-right">
-    <label class="toggle"><input type="checkbox" id="unlearnedOnly" checked> 未学習のみ</label>
-    <button id="reload" aria-label="同期">⟳</button>
+    <button id="filterBtn" class="hbtn">絞り込み<span id="filterBadge" hidden></span></button>
+    <button id="reload" class="hbtn" aria-label="同期">⟳</button>
   </div>
 </header>
 
@@ -30,8 +30,9 @@
     </div>
     <div class="face back">
       <div class="word ja" id="ja"></div>
-      <div class="example" id="example"></div>
-      <div class="meta" id="meta"></div>
+      <div class="sec" id="exampleBox"><div class="label">例文</div><div class="example" id="example"></div></div>
+      <div class="sec" id="noteBox"><div class="label">備考</div><div class="note" id="note"></div></div>
+      <div class="sec" id="sourceBox"><div class="label">出典</div><a id="sourceLink" class="source"></a></div>
     </div>
   </div>
   <div id="empty" hidden>表示できる単語がありません 🎉</div>
@@ -42,6 +43,30 @@
   <button id="done" class="done">覚えた ✓</button>
   <button id="next" class="nav">›</button>
 </footer>
+
+<div id="sheetBg" hidden></div>
+<section id="sheet" hidden>
+  <h2>絞り込み</h2>
+  <div class="row">
+    <div class="label">暗記状況</div>
+    <div class="seg" id="statusSeg">
+      <button data-v="todo">まだ</button>
+      <button data-v="done">覚えた</button>
+      <button data-v="all">すべて</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="label">出典</div>
+    <select id="sourceSel"></select>
+  </div>
+  <div class="row">
+    <label class="toggle"><input type="checkbox" id="shuffle"> ランダム順</label>
+  </div>
+  <div class="actions">
+    <button id="filterReset">リセット</button>
+    <button id="filterClose" class="primary">閉じる</button>
+  </div>
+</section>
 
 <div id="toast"></div>
 <script src="config.js"></script>

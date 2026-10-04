@@ -34,19 +34,38 @@ function doGet(e) {
     const sheet = getSheet_();
     const last = sheet.getLastRow();
     if (last < 2) return json_({ ok: true, words: [] });
-    const values = sheet.getRange(2, 1, last - 1, 7).getValues();
+    const n = last - 1;
+    // 見た目どおりの文字列を取得。H列(開始秒・任意)は存在すれば読む
+    const cols = Math.min(8, sheet.getMaxColumns());
+    const values = sheet.getRange(2, 1, n, cols).getDisplayValues();
+    const richE = sheet.getRange(2, 5, n, 1).getRichTextValues();   // 出典セルのリンク
+    const formE = sheet.getRange(2, 5, n, 1).getFormulas();         // =HYPERLINK() 対応
     const words = [];
     values.forEach((r, i) => {
       if (!String(r[0]).trim()) return;
+      const srcText = String(r[4]);
+      let url = '';
+      const rt = richE[i][0];
+      if (rt) {
+        url = rt.getLinkUrl() || '';
+        if (!url) rt.getRuns().some(run => { url = run.getLinkUrl() || ''; return !!url; });
+      }
+      if (!url && formE[i][0]) {
+        const m = String(formE[i][0]).match(/HYPERLINK\(\s*"([^"]+)"/i);
+        if (m) url = m[1];
+      }
+      if (!url && /^https?:\/\//i.test(srcText.trim())) url = srcText.trim();
       words.push({
         row: i + 2,
         en: String(r[0]),
         ipa: String(r[1]),
         ja: String(r[2]),
         done: isDone_(r[3]),
-        source: String(r[4]),
+        source: srcText,            // シートに表示されている名前そのまま
+        sourceUrl: url,
         example: String(r[5]),
-        note: String(r[6])
+        note: String(r[6]),
+        startSec: cols >= 8 ? String(r[7]).trim() : ''   // H列: 再生開始秒(任意)
       });
     });
     return json_({ ok: true, words: words });
