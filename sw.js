@@ -1,4 +1,4 @@
-const CACHE = 'wordcard-v3';
+const CACHE = 'wordcard-v4';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', e => {

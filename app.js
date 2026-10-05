@@ -6,7 +6,7 @@
 
   let words = load(LS.words, []);              // 全単語
   // status: 'todo'(まだ) | 'done'(覚えた) | 'all' / source: '' = すべて / shuffle + seed: ランダム順
-  let state = Object.assign({ en: null, status: 'todo', source: '', shuffle: false, seed: 1 }, load(LS.state, {}));
+  let state = Object.assign({ en: null, status: 'todo', source: '', shuffle: false, seed: 1, autoSpeak: false }, load(LS.state, {}));
   if ('unlearnedOnly' in state) { state.status = state.unlearnedOnly ? 'todo' : 'all'; delete state.unlearnedOnly; }
   let queue = load(LS.queue, []);              // 未送信のStatus更新
   let list = [];                               // 表示対象
@@ -20,6 +20,43 @@
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
   }
+
+  /* ---------- 音声発話 (Web Speech API / 端末内TTS・外部通信なし) ---------- */
+  const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  let enVoice = null;
+  function pickVoice() {
+    if (!synth) return;
+    const vs = synth.getVoices().filter(v => /^en[-_]/i.test(v.lang));
+    // 端末内(localService)の米国英語を最優先 → 他の英語
+    enVoice = vs.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
+              vs.find(v => /en[-_]US/i.test(v.lang)) ||
+              vs.find(v => v.localService) || vs[0] || null;
+  }
+  if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
+
+  function speak(text) {
+    if (!synth) { toast('この端末は音声読み上げ非対応です'); return; }
+    if (!text) return;
+    synth.cancel();                      // 連打・連続移動時に溜めない
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    if (enVoice) u.voice = enVoice;
+    u.rate = 0.9;
+    synth.speak(u);
+  }
+  $('speakEn').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.en); };
+  $('speakEx').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.example); };
+  $('autoSpeak').checked = state.autoSpeak;
+  $('autoSpeak').onchange = e => { state.autoSpeak = e.target.checked; save(LS.state, state); };
+
+  /* ---------- スマートウォッチ判定 ---------- */
+  function applyWatchMode() {
+    const forced = new URLSearchParams(location.search).get('watch');
+    const watch = forced === '1' || (forced !== '0' && window.matchMedia('(max-width: 300px)').matches);
+    document.documentElement.classList.toggle('watch', watch);
+  }
+  applyWatchMode();
+  window.addEventListener('resize', applyWatchMode);
 
   /* ---------- YouTube ディープリンク ---------- */
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -180,6 +217,7 @@
       card.style.setProperty('--from', delta > 0 ? '40px' : '-40px');
       render();
       card.classList.add('slide-in');
+      if (state.autoSpeak && list[idx]) speak(list[idx].en);
       setTimeout(() => { card.classList.remove('slide-in'); busy = false; }, 200);
     }, 150);
   }
@@ -188,7 +226,7 @@
   let sx = 0, sy = 0, dx = 0, tracking = false, moved = false;
   const stage = $('stage');
   stage.addEventListener('pointerdown', e => {
-    if (busy || e.target.closest('a')) return;   // 出典リンクのタップではカードを裏返さない
+    if (busy || e.target.closest('a, button')) return;   // リンク/発音ボタンのタップではカードを裏返さない
     tracking = true; moved = false; sx = e.clientX; sy = e.clientY; dx = 0;
   });
   stage.addEventListener('pointermove', e => {
