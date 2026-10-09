@@ -113,3 +113,5 @@ html.watch footer { padding: 6px 14% 12%; gap: 6px; }
 html.watch .nav { width: 44px; font-size: 22px; border-radius: 12px; }
 html.watch .done { height: 48px; font-size: 14px; border-radius: 12px; }
 html.watch #toast { bottom: 24%; font-size: 11px; }
+
+html.watch #empty { font-size: 13px; padding: 0 12%; line-height: 1.5; }

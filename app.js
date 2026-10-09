@@ -13,8 +13,14 @@
   let idx = 0;
   let busy = false;
 
-  function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
-  function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+  function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ストレージ不可でも動作継続 */ } }
+  function fatal(where, e) {
+    const msg = '[' + where + '] ' + ((e && e.message) || e) + (e && e.stack ? '\n' + e.stack : '');
+    if (window.__showError) window.__showError(msg);
+  }
+  if (!Array.isArray(words)) words = [];
+  if (!Array.isArray(queue)) queue = [];
 
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.add('show');
@@ -22,41 +28,50 @@
   }
 
   /* ---------- 音声発話 (Web Speech API / 端末内TTS・外部通信なし) ---------- */
-  const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  // 未対応環境(ウォッチ等)では何もせず、発音ボタンを隠して続行する
+  let synth = null;
+  try {
+    if (typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined') synth = window.speechSynthesis;
+  } catch (e) { synth = null; }
   let enVoice = null;
   function pickVoice() {
-    if (!synth) return;
-    const vs = synth.getVoices().filter(v => /^en[-_]/i.test(v.lang));
-    // 端末内(localService)の米国英語を最優先 → 他の英語
-    enVoice = vs.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
-              vs.find(v => /en[-_]US/i.test(v.lang)) ||
-              vs.find(v => v.localService) || vs[0] || null;
+    try {
+      if (!synth) return;
+      const vs = (synth.getVoices() || []).filter(v => /^en[-_]/i.test(v.lang));
+      // 端末内(localService)の米国英語を最優先 → 他の英語
+      enVoice = vs.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
+                vs.find(v => /en[-_]US/i.test(v.lang)) ||
+                vs.find(v => v.localService) || vs[0] || null;
+    } catch (e) { enVoice = null; }
   }
-  if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
+  try { if (synth) { pickVoice(); if (synth.addEventListener) synth.addEventListener('voiceschanged', pickVoice); } } catch (e) {}
 
   function speak(text) {
-    if (!synth) { toast('この端末は音声読み上げ非対応です'); return; }
-    if (!text) return;
-    synth.cancel();                      // 連打・連続移動時に溜めない
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    if (enVoice) u.voice = enVoice;
-    u.rate = 0.9;
-    synth.speak(u);
+    try {
+      if (!synth || !text) return;
+      synth.cancel();                      // 連打・連続移動時に溜めない
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      if (enVoice) u.voice = enVoice;
+      u.rate = 0.9;
+      synth.speak(u);
+    } catch (e) { if (window.__showError) window.__showError('[speech] ' + e.message); }
   }
+  if (!synth) document.querySelectorAll('.speak').forEach(b => { b.style.display = 'none'; });
   $('speakEn').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.en); };
   $('speakEx').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.example); };
-  $('autoSpeak').checked = state.autoSpeak;
+  $('autoSpeak').checked = !!state.autoSpeak && !!synth;
   $('autoSpeak').onchange = e => { state.autoSpeak = e.target.checked; save(LS.state, state); };
 
-  /* ---------- スマートウォッチ判定 ---------- */
+  /* ---------- スマートウォッチ判定 (本体は index.html 先頭の __applyWatch) ---------- */
   function applyWatchMode() {
-    const forced = new URLSearchParams(location.search).get('watch');
-    const watch = forced === '1' || (forced !== '0' && window.matchMedia('(max-width: 300px)').matches);
-    document.documentElement.classList.toggle('watch', watch);
+    try {
+      if (window.__applyWatch) window.__applyWatch();
+      else document.documentElement.classList.toggle('watch', Math.min(window.innerWidth, screen.width || 9999) <= 450);
+    } catch (e) { /* 失敗しても通常UIで続行 */ }
   }
   applyWatchMode();
-  window.addEventListener('resize', applyWatchMode);
+  window.addEventListener('resize', () => { applyWatchMode(); try { buildList(list[idx] && list[idx].en); render(); } catch (e) { fatal('resize', e); } });
 
   /* ---------- YouTube ディープリンク ---------- */
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -114,6 +129,8 @@
       (state.status === 'all' || (state.status === 'done') === w.done) &&
       (!state.source || w.source === state.source));
     if (state.shuffle) list.sort((a, b) => hash(a.en + state.seed) - hash(b.en + state.seed));
+    // ウォッチ(極小UI)は絞り込みUIが無いので、結果が空なら保存済みフィルターを無視して全単語を出す
+    if (!list.length && words.length && isWatch()) list = words.slice();
     const i = keepEn ? list.findIndex(w => w.en === keepEn) : -1;
     idx = i >= 0 ? i : Math.min(idx, Math.max(list.length - 1, 0));
     updateBadge();
@@ -165,13 +182,25 @@
   };
 
   /* ---------- 表示 ---------- */
+  function setEmpty(msg) {
+    const e = $('empty');
+    e.textContent = msg; e.hidden = false; e.style.whiteSpace = 'pre-line'; e.style.textAlign = 'center';
+    card.hidden = true;
+  }
+  const isWatch = () => document.documentElement.classList.contains('watch');
+  $('empty').onclick = () => { if (!words.length) { setEmpty('読み込み中…'); sync(true); } };
+
   function render() {
     const w = list[idx];
     $('empty').hidden = !!w;
     card.hidden = !w;
     $('done').disabled = !w;
     $('progress').textContent = w ? `${idx + 1} / ${list.length}` : '0 / 0';
-    if (!w) return;
+    if (!w) {
+      // 単語データ自体が未取得のときは「読み込み中/失敗」の表示を上書きしない
+      if (words.length) setEmpty('表示できる単語がありません 🎉\n(絞り込みを確認)');
+      return;
+    }
     $('en').textContent = w.en;
     $('ipa').textContent = w.ipa;
     $('ja').textContent = w.ja;
@@ -308,11 +337,21 @@
     $('reload').classList.add('spin');
     try {
       await flushQueue();
-      const res = await fetch(`${CONFIG.API_URL}?token=${encodeURIComponent(CONFIG.TOKEN)}`);
-      const j = await res.json();
-      if (!j.ok) throw new Error(j.error);
+      const url = `${CONFIG.API_URL}?token=${encodeURIComponent(CONFIG.TOKEN)}`;
+      // 制限の多いWebViewでハングしないようタイムアウトを設ける(AbortController未対応なら無し)
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
+      let res;
+      try { res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined); }
+      finally { if (timer) clearTimeout(timer); }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      let j;
+      try { j = JSON.parse(text); }
+      catch { throw new Error('JSONではない応答: ' + text.slice(0, 80)); }
+      if (!j.ok) throw new Error(j.error || 'API error');
       const pending = new Map(queue.map(q => [q.en, q.done]));
-      words = j.words.map(w => pending.has(w.en) ? { ...w, done: pending.get(w.en) } : w);
+      words = j.words.map(w => pending.has(w.en) ? Object.assign({}, w, { done: pending.get(w.en) }) : w);
       save(LS.words, words);
       const cur = list[idx] && list[idx].en;
       refreshSourceOptions();
@@ -320,7 +359,10 @@
       render();
       if (manual) toast('同期しました');
     } catch (e) {
-      toast(words.length ? 'オフライン: 保存データを表示中' : '読み込み失敗: ' + e.message);
+      const msg = (e && e.name === 'AbortError') ? 'タイムアウト' : (e && e.message) || String(e);
+      if (window.__showError) window.__showError('[sync] ' + msg + (e && e.stack ? '\n' + e.stack : ''));
+      if (!words.length) setEmpty('読み込み失敗\n' + msg + '\n(タップで⟳再試行)');
+      toast(words.length ? 'オフライン: 保存データを表示中' : '読み込み失敗: ' + msg);
     } finally { $('reload').classList.remove('spin'); }
   }
 
@@ -329,10 +371,15 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushQueue(); });
 
   /* ---------- 起動: キャッシュで即表示 → 裏で同期 ---------- */
-  refreshSourceOptions();
-  buildList(state.en);
-  render();
-  sync(false);
+  try {
+    if (!words.length) setEmpty('読み込み中…');
+    refreshSourceOptions();
+    buildList(state.en);
+    render();
+  } catch (e) { fatal('起動', e); }
+  sync(false).catch(e => fatal('同期', e));
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  try {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => fatal('SW', e));
+  } catch (e) { /* ウォッチ等で未対応でも無視 */ }
 })();
