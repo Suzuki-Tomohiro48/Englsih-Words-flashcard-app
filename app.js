@@ -15,10 +15,7 @@
 
   function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ストレージ不可でも動作継続 */ } }
-  function fatal(where, e) {
-    const msg = '[' + where + '] ' + ((e && e.message) || e) + (e && e.stack ? '\n' + e.stack : '');
-    if (window.__showError) window.__showError(msg);
-  }
+  function fatal(where, e) { console.error(where, e); }
   if (!Array.isArray(words)) words = [];
   if (!Array.isArray(queue)) queue = [];
 
@@ -28,50 +25,69 @@
   }
 
   /* ---------- 音声発話 (Web Speech API / 端末内TTS・外部通信なし) ---------- */
-  // 未対応環境(ウォッチ等)では何もせず、発音ボタンを隠して続行する
+  // 未対応環境では何もせず、発音ボタンを隠して続行する
   let synth = null;
   try {
     if (typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance !== 'undefined') synth = window.speechSynthesis;
   } catch (e) { synth = null; }
-  let enVoice = null;
+  const voices = { en: null, ja: null };
   function pickVoice() {
     try {
       if (!synth) return;
-      const vs = (synth.getVoices() || []).filter(v => /^en[-_]/i.test(v.lang));
-      // 端末内(localService)の米国英語を最優先 → 他の英語
-      enVoice = vs.find(v => /en[-_]US/i.test(v.lang) && v.localService) ||
-                vs.find(v => /en[-_]US/i.test(v.lang)) ||
-                vs.find(v => v.localService) || vs[0] || null;
-    } catch (e) { enVoice = null; }
+      const all = synth.getVoices() || [];
+      const find = (re, strict) => {
+        const vs = all.filter(v => re.test(v.lang));
+        // 端末内(localService)の音声を優先 → なければ何でも
+        return (strict && vs.find(v => strict.test(v.lang) && v.localService)) ||
+               (strict && vs.find(v => strict.test(v.lang))) ||
+               vs.find(v => v.localService) || vs[0] || null;
+      };
+      voices.en = find(/^en[-_]/i, /en[-_]US/i);
+      voices.ja = find(/^ja[-_]?/i, /ja[-_]JP/i);
+    } catch (e) { /* 既定音声で続行 */ }
   }
   try { if (synth) { pickVoice(); if (synth.addEventListener) synth.addEventListener('voiceschanged', pickVoice); } } catch (e) {}
+
+  // 日本語(ひらがな/カタカナ/漢字/全角記号)かどうか
+  const RE_JA = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef\u3000-\u303f々ー]/;
+  const RE_EN = /[A-Za-z]/;
+
+  // テキストを言語ごとの連続したかたまりに分割する。
+  // 英字は 'en'、日本語文字は 'ja'。数字・空白・ASCII記号は直前のかたまりに付ける（先頭なら最初のかたまりに付ける）。
+  function splitByLang(text) {
+    const runs = [];
+    let pending = '';                        // 言語が決まる前の先頭の記号など
+    for (const ch of String(text)) {
+      const lang = RE_JA.test(ch) ? 'ja' : RE_EN.test(ch) ? 'en' : null;
+      const last = runs[runs.length - 1];
+      if (!lang) { if (last) last.text += ch; else pending += ch; continue; }
+      if (last && last.lang === lang) last.text += ch;
+      else runs.push({ lang, text: (runs.length ? '' : pending) + ch });
+    }
+    // 読める文字を含まないかたまり(記号だけ等)は捨てる
+    return runs.filter(r => /[A-Za-z0-9\u3040-\u30ff\u3400-\u9fff]/.test(r.text));
+  }
 
   function speak(text) {
     try {
       if (!synth || !text) return;
-      synth.cancel();                      // 連打・連続移動時に溜めない
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'en-US';
-      if (enVoice) u.voice = enVoice;
-      u.rate = 0.9;
-      synth.speak(u);
-    } catch (e) { if (window.__showError) window.__showError('[speech] ' + e.message); }
+      synth.cancel();                        // 連打・連続移動時に溜めない
+      splitByLang(text).forEach(r => {       // speak()を連続で呼ぶと順番に再生される
+        const u = new SpeechSynthesisUtterance(r.text);
+        u.lang = r.lang === 'ja' ? 'ja-JP' : 'en-US';
+        const v = voices[r.lang];
+        if (v) u.voice = v;
+        u.rate = r.lang === 'ja' ? 1.0 : 0.9;
+        synth.speak(u);
+      });
+    } catch (e) { console.error('speech', e); }
   }
   if (!synth) document.querySelectorAll('.speak').forEach(b => { b.style.display = 'none'; });
   $('speakEn').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.en); };
   $('speakEx').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.example); };
+  $('speakNote').onclick = e => { e.stopPropagation(); const w = list[idx]; if (w) speak(w.note); };
   $('autoSpeak').checked = !!state.autoSpeak && !!synth;
   $('autoSpeak').onchange = e => { state.autoSpeak = e.target.checked; save(LS.state, state); };
-
-  /* ---------- スマートウォッチ判定 (本体は index.html 先頭の __applyWatch) ---------- */
-  function applyWatchMode() {
-    try {
-      if (window.__applyWatch) window.__applyWatch();
-      else document.documentElement.classList.toggle('watch', Math.min(window.innerWidth, screen.width || 9999) <= 450);
-    } catch (e) { /* 失敗しても通常UIで続行 */ }
-  }
-  applyWatchMode();
-  window.addEventListener('resize', () => { applyWatchMode(); try { buildList(list[idx] && list[idx].en); render(); } catch (e) { fatal('resize', e); } });
 
   /* ---------- YouTube ディープリンク ---------- */
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -129,8 +145,6 @@
       (state.status === 'all' || (state.status === 'done') === w.done) &&
       (!state.source || w.source === state.source));
     if (state.shuffle) list.sort((a, b) => hash(a.en + state.seed) - hash(b.en + state.seed));
-    // ウォッチ(極小UI)は絞り込みUIが無いので、結果が空なら保存済みフィルターを無視して全単語を出す
-    if (!list.length && words.length && isWatch()) list = words.slice();
     const i = keepEn ? list.findIndex(w => w.en === keepEn) : -1;
     idx = i >= 0 ? i : Math.min(idx, Math.max(list.length - 1, 0));
     updateBadge();
@@ -187,7 +201,6 @@
     e.textContent = msg; e.hidden = false; e.style.whiteSpace = 'pre-line'; e.style.textAlign = 'center';
     card.hidden = true;
   }
-  const isWatch = () => document.documentElement.classList.contains('watch');
   $('empty').onclick = () => { if (!words.length) { setEmpty('読み込み中…'); sync(true); } };
 
   function render() {
@@ -360,7 +373,7 @@
       if (manual) toast('同期しました');
     } catch (e) {
       const msg = (e && e.name === 'AbortError') ? 'タイムアウト' : (e && e.message) || String(e);
-      if (window.__showError) window.__showError('[sync] ' + msg + (e && e.stack ? '\n' + e.stack : ''));
+      console.error('sync', e);
       if (!words.length) setEmpty('読み込み失敗\n' + msg + '\n(タップで⟳再試行)');
       toast(words.length ? 'オフライン: 保存データを表示中' : '読み込み失敗: ' + msg);
     } finally { $('reload').classList.remove('spin'); }

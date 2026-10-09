@@ -3,54 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<script>
-/* ===== デバッグ: エラーを画面に直接表示（ウォッチ等Consoleが見られない環境用）。不要になったらこの<script>を削除 ===== */
-(function () {
-  var box;
-  function show(msg) {
-    try {
-      if (!box) {
-        box = document.createElement('pre');
-        box.id = 'errBox';
-        box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:60%;overflow:auto;margin:0;padding:6px;' +
-          'background:#7f1d1dee;color:#fff;font:10px/1.3 monospace;white-space:pre-wrap;word-break:break-all;z-index:99999';
-        box.onclick = function () { box.style.display = 'none'; };   // タップで閉じる
-        (document.body || document.documentElement).appendChild(box);
-      }
-      box.style.display = 'block';
-      box.textContent += msg + '\n';
-    } catch (e) {}
-  }
-  window.__showError = show;
-  window.addEventListener('error', function (e) {
-    show('[error] ' + (e.message || 'unknown') + (e.filename ? '\n  @' + String(e.filename).split('/').pop() + ':' + e.lineno + ':' + e.colno : '') +
-      (e.error && e.error.stack ? '\n' + e.error.stack : ''));
-  });
-  window.addEventListener('unhandledrejection', function (e) {
-    var r = e.reason; show('[promise] ' + (r && r.message ? r.message : r) + (r && r.stack ? '\n' + r.stack : ''));
-  });
-  // ウォッチ判定: 実機は viewport が広く報告されることがあるため、複数の幅の最小値で判定
-  function vw() {
-    var a = [window.innerWidth, document.documentElement && document.documentElement.clientWidth, window.screen && window.screen.width]
-      .filter(function (n) { return n > 0; });
-    return a.length ? Math.min.apply(null, a) : 9999;
-  }
-  window.__vw = vw;
-  window.__applyWatch = function () {
-    var f = (location.search.match(/[?&]watch=(\d)/) || [])[1];
-    var on = f === '1' || (f !== '0' && vw() <= 450);
-    document.documentElement.className = document.documentElement.className.replace(/\bwatch\b/g, '').trim() + (on ? ' watch' : '');
-    return on;
-  };
-  window.__applyWatch();
-  if (/[?&]debug=1/.test(location.search)) {
-    document.addEventListener('DOMContentLoaded', function () {
-      show('[debug] w=' + window.innerWidth + ' cw=' + document.documentElement.clientWidth + ' sw=' + (window.screen && screen.width) +
-        ' dpr=' + window.devicePixelRatio + ' watch=' + /\bwatch\b/.test(document.documentElement.className) + '\nUA=' + navigator.userAgent);
-    });
-  }
-})();
-</script>
 <meta name="theme-color" content="#1e293b">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
@@ -80,7 +32,7 @@
     <div class="face back">
       <div class="word ja" id="ja"></div>
       <div class="sec" id="exampleBox"><div class="label">例文 <button class="speak sm" id="speakEx" aria-label="例文を発音">🔊</button></div><div class="example" id="example"></div></div>
-      <div class="sec" id="noteBox"><div class="label">備考</div><div class="note" id="note"></div></div>
+      <div class="sec" id="noteBox"><div class="label">備考 <button class="speak sm" id="speakNote" aria-label="備考を発音">🔊</button></div><div class="note" id="note"></div></div>
       <div class="sec" id="sourceBox"><div class="label">出典</div><a id="sourceLink" class="source"></a></div>
     </div>
   </div>

@@ -92,26 +92,3 @@ footer button { border: 0; border-radius: 16px; font-size: 18px; font-weight: 70
 .speak:active { background: #ffffff40; }
 .speak.sm { width: 32px; height: 32px; font-size: 16px; vertical-align: middle; margin-left: 6px; }
 .front .speak { position: absolute; top: 14px; right: 14px; }
-
-/* ---------- スマートウォッチ極小UI (html.watch: 画面幅<=300px or ?watch=1) ---------- */
-html.watch header { justify-content: center; padding: 14% 0 2px; font-size: 12px; }
-html.watch .header-right { display: none; }
-html.watch #stage { padding: 0 10%; }
-html.watch .card { height: 52vh; }
-html.watch .face { border-radius: 18px; padding: 10px; gap: 6px; }
-html.watch .word { font-size: 24px; }
-html.watch .word.ja { font-size: 20px; }
-html.watch .ipa { font-size: 12px; }
-html.watch .hint, html.watch .label { display: none; }
-html.watch .example { font-size: 11px; }
-html.watch .note { font-size: 11px; }
-html.watch .source { font-size: 11px; padding: 4px 0; }
-html.watch .back { padding-top: 12px; }
-html.watch .front .speak { top: 6px; right: 6px; width: 40px; height: 40px; font-size: 18px; }
-html.watch .speak.sm { display: none; }
-html.watch footer { padding: 6px 14% 12%; gap: 6px; }
-html.watch .nav { width: 44px; font-size: 22px; border-radius: 12px; }
-html.watch .done { height: 48px; font-size: 14px; border-radius: 12px; }
-html.watch #toast { bottom: 24%; font-size: 11px; }
-
-html.watch #empty { font-size: 13px; padding: 0 12%; line-height: 1.5; }
