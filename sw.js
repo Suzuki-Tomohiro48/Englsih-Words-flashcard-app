@@ -1,5 +1,5 @@
-const CACHE = 'wordcard-v6';
-const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.json', 'icon.svg'];
+const CACHE = 'wordcard-v7';
+const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'common.js', 'quotes.js', 'config.js', 'stats.html', 'stats.css', 'stats.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

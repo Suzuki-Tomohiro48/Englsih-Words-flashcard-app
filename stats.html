@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>学習記録</title>
+<link rel="stylesheet" href="stats.css">
+</head>
+<body>
+<header>
+  <div class="title">学習記録</div>
+  <div class="header-right">
+    <button id="reload" class="hbtn" aria-label="同期">⟳</button>
+  </div>
+</header>
+
+<main>
+  <section class="quote-card">
+    <div class="qhead">今日の名言</div>
+    <div class="qtext" id="qText"></div>
+    <div class="qja" id="qJa"></div>
+    <div class="qby" id="qBy"></div>
+    <button class="speak" id="qSpeak" aria-label="読み上げ">🔊</button>
+  </section>
+
+  <section class="hero">
+    <div class="streak">
+      <div class="flame" id="flame">🔥</div>
+      <div class="streak-num"><span id="streakNum">0</span><small>日連続</small></div>
+      <div class="streak-sub" id="streakSub"></div>
+    </div>
+    <div class="ring-wrap">
+      <svg viewBox="0 0 120 120" class="ring" aria-hidden="true">
+        <circle cx="60" cy="60" r="52" class="ring-bg"></circle>
+        <circle cx="60" cy="60" r="52" class="ring-fg" id="ringFg"></circle>
+      </svg>
+      <div class="ring-text"><b id="ringNum">0</b><small id="ringGoal">/ 20語</small><em>今日</em></div>
+    </div>
+  </section>
+
+  <section class="cards">
+    <div class="stat"><b id="stToday">-</b><span>今日の学習<br>(分)</span></div>
+    <div class="stat"><b id="stWeekWords">-</b><span>今週の語数</span></div>
+    <div class="stat"><b id="stWeekMin">-</b><span>今週の学習<br>(分)</span></div>
+    <div class="stat"><b id="stBest">-</b><span>最長連続<br>(日)</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>アクティビティ</h2>
+      <div class="seg" id="appSeg">
+        <button data-v="all">すべて</button>
+        <button data-v="english">英語</button>
+        <button data-v="other">運動</button>
+      </div>
+    </div>
+    <div class="hm-wrap">
+      <div class="hm-days"><span></span><span>月</span><span></span><span>水</span><span></span><span>金</span><span></span></div>
+      <div id="heatmap" class="hm all"></div>
+    </div>
+    <div class="hm-legend">少<i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>多</div>
+    <div id="detail" class="detail">マスをタップすると、その日の内容が表示されます</div>
+  </section>
+
+  <section class="panel">
+    <h2>単語の状況</h2>
+    <div class="cards two">
+      <div class="stat"><b id="wDue">-</b><span>復習待ち</span></div>
+      <div class="stat"><b id="wNew">-</b><span>新規(未学習)</span></div>
+      <div class="stat"><b id="wDone">-</b><span>覚えた</span></div>
+      <div class="stat"><b id="wTotal">-</b><span>全単語</span></div>
+    </div>
+  </section>
+
+  <a class="go" href="index.html">今日の学習を始める ›</a>
+  <div class="foot" id="foot"></div>
+</main>
+
+<div id="toast"></div>
+<script src="config.js"></script>
+<script src="quotes.js"></script>
+<script src="common.js"></script>
+<script src="stats.js"></script>
+</body>
+</html>
+
