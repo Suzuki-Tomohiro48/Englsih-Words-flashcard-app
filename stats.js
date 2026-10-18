@@ -170,8 +170,14 @@
     $('reload').classList.add('spin');
     try {
       try { await WC.flush(); } catch (e) { /* オフライン等は後で再送 */ }
-      const j = await WC.apiGet({ action: 'summary' });
+      const cachedWords = load(LS.words, []);
+      const needWords = manual || !Array.isArray(cachedWords) || !cachedWords.length || !('reps' in cachedWords[0]);
+      const [j, wj] = await Promise.all([
+        WC.apiGet({ action: 'summary' }),
+        needWords ? WC.apiGet({ action: 'words' }).catch(() => null) : Promise.resolve(null)
+      ]);
       if (!j.ok) throw new Error(j.error || 'API error');
+      if (wj && wj.ok && Array.isArray(wj.words)) save(LS.words, wj.words);
       summary = { days: j.days || [], quotes: j.quotes || [] };
       save(LS.summary, summary);
       $('foot').textContent = '更新: ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });

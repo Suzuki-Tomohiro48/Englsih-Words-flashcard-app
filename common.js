@@ -1,7 +1,7 @@
 /* 単語カード / 学習記録 共通モジュール（日付・保存・API・送信キュー・音声・名言） */
 (function () {
   'use strict';
-  const C = window.CONFIG || {};
+  const C = (typeof CONFIG !== 'undefined' ? CONFIG : window.CONFIG) || {};
   const DAY_START = C.DAY_START_HOUR != null ? C.DAY_START_HOUR : 4;
 
   const LS = {
