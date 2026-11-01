@@ -222,7 +222,7 @@ function getWidget_() {
   const m = {};
   getSummary_().days.forEach(d => {
     const o = m[d.day] || (m[d.day] = { words: 0, eng: 0, other: 0 });
-    if (d.app === 'english') { o.words += d.words; o.eng += Math.max(d.active_sec / 60, d.words * 0.5); }
+    if (d.app === 'english') { o.words += d.words; o.eng += d.active_sec / 60; }
     else o.other += d.active_sec / 60;
   });
   const act = day => !!m[day] && (m[day].words > 0 || m[day].eng > 0 || m[day].other > 0);

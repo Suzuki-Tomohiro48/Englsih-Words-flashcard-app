@@ -44,8 +44,8 @@
     return m;
   }
 
-  // 英語の「活動分」は、操作時間と、1語0.5分換算の長い方（短時間で多く覚えた日も正しく評価）
-  const engMin = o => o ? Math.max(o.engSec / 60, o.words * 0.5) : 0;
+  // 英語の勉強時間（分）は、ボタン計測およびCSV引き継ぎで記録した実測時間のみを使用
+  const engMin = o => o ? (o.engSec / 60) : 0;
   const othMin = o => o ? o.otherSec / 60 : 0;
   const minutesOf = (o, f) => f === 'english' ? engMin(o) : f === 'other' ? othMin(o) : engMin(o) + othMin(o);
   // 連続日数の判定: 1語以上、または1分以上の学習・運動があった日
@@ -89,17 +89,21 @@
     $('ringFg').style.strokeDashoffset = String(326.73 * (1 - frac));
     document.querySelector('.ring-wrap').classList.toggle('full', words >= GOAL);
 
-    // 数値カード
+    // 数値カード & 勉強時間サマリー
     $('stToday').textContent = fmtMin(minutesOf(today, 'all'));
     const weekStart = WC.addDays(t, -WC.dayOfWeek(t));        // 日曜始まり
-    let ww = 0, wm = 0;
+    let ww = 0, wm = 0, weekEngSec = 0, totalEngSec = 0;
     for (let i = 0; i < 7; i++) {
       const o = map[WC.addDays(weekStart, i)];
-      if (o) { ww += o.words; wm += minutesOf(o, 'all'); }
+      if (o) { ww += o.words; wm += minutesOf(o, 'all'); weekEngSec += o.engSec; }
     }
+    Object.keys(map).forEach(d => { totalEngSec += map[d].engSec || 0; });
     $('stWeekWords').textContent = ww;
     $('stWeekMin').textContent = fmtMin(wm);
     $('stBest').textContent = st.best;
+    if ($('tmToday')) $('tmToday').textContent = WC.fmtHm(today ? today.engSec : 0);
+    if ($('tmWeek')) $('tmWeek').textContent = WC.fmtHm(weekEngSec);
+    if ($('tmTotal')) $('tmTotal').textContent = WC.fmtHm(totalEngSec);
 
     renderHeatmap(map, t);
     renderWords(t);
@@ -194,10 +198,235 @@
   window.addEventListener('online', () => sync(false));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(false); });
 
+  /* ---------- 勉強時間タイマー & Simple Time Tracker CSV引き継ぎ ---------- */
+  function renderTimer() {
+    if (!$('timerClock')) return;
+    const on = !!WC.getTimer();
+    const sec = WC.timerElapsed();
+    $('timerClock').textContent = WC.fmtClock(sec);
+    $('timerClock').classList.toggle('running', on);
+    $('timerToggle').classList.toggle('running', on);
+    $('timerToggle').textContent = on ? '⏹ 停止して記録' : '▶ 計測を開始';
+    $('timerCancel').hidden = !on;
+  }
+  if ($('timerToggle')) {
+    $('timerToggle').onclick = () => {
+      if (WC.getTimer()) {
+        const sec = WC.stopTimer();
+        renderTimer();
+        render();
+        toast(sec > 0 ? ('⏱ ' + WC.fmtHm(sec) + ' を記録しました') : '計測を終了しました');
+      } else {
+        WC.startTimer();
+        renderTimer();
+        toast('⏱ 計測を開始しました');
+      }
+    };
+    $('timerCancel').onclick = () => {
+      WC.cancelTimer();
+      renderTimer();
+      toast('計測を破棄しました');
+    };
+  }
+  setInterval(renderTimer, 1000);
+  window.addEventListener('storage', e => { if (!e.key || e.key === LS.timer) renderTimer(); });
+
+  // RFC4180準拠の簡易CSVパーサ（カンマ・タブ自動判定）
+  function parseCsvRows(text) {
+    text = String(text || '').replace(/^\uFEFF/, '');
+    const firstLine = (text.split(/\r?\n/)[0] || '');
+    const delim = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += ch;
+      } else if (ch === '"') {
+        inQ = true;
+      } else if (ch === delim) {
+        row.push(cur.trim()); cur = '';
+      } else if (ch === '\r' || ch === '\n') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur.trim()); cur = '';
+        if (row.some(c => c !== '')) rows.push(row);
+        row = [];
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur !== '' || row.length) { row.push(cur.trim()); if (row.some(c => c !== '')) rows.push(row); }
+    return rows;
+  }
+
+  function parseDateTimeMs(s) {
+    if (!s) return NaN;
+    s = String(s).trim().replace(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/, '$1-$2-$3');
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    if (m) {
+      return new Date(+m[1], +m[2] - 1, +m[3], +m[4] || 0, +m[5] || 0, +m[6] || 0).getTime();
+    }
+    return Date.parse(s);
+  }
+
+  function parseDurationSec(durStr, minStr, startMs, endMs) {
+    if (durStr) {
+      const hm = String(durStr).trim().match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (hm) return hm[3] != null ? (+hm[1] * 3600 + +hm[2] * 60 + +hm[3]) : (+hm[1] * 60 + +hm[2]);
+    }
+    if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) return Math.round((endMs - startMs) / 1000);
+    if (minStr != null && minStr !== '' && !isNaN(Number(minStr))) return Math.round(Number(minStr) * 60);
+    if (durStr != null && durStr !== '' && !isNaN(Number(durStr))) return Math.round(Number(durStr) * 60);
+    return 0;
+  }
+
+  // Simple Time Tracker 等のCSVから { name, spans: [{day, sec}] } の一覧を抽出
+  function extractRecordsFromCsv(text) {
+    const rows = parseCsvRows(text);
+    if (rows.length < 2) return [];
+    const head = rows[0].map(h => h.toLowerCase());
+    const findCol = re => head.findIndex(h => re.test(h));
+    let cName = findCol(/activity\s*name|^activity$|^name$|項目|カテゴリ|アクティビティ|名前|種別/);
+    let cStart = findCol(/time\s*started|start\s*time|^started$|^start$|開始|日付|^date$/);
+    let cEnd = findCol(/time\s*ended|end\s*time|^ended$|^end$|終了/);
+    let cDur = findCol(/^duration$|時間|長さ|経過/);
+    let cMin = findCol(/duration\s*minutes|minutes|分/);
+
+    // ヘッダーが無い・別名の場合の自動推定
+    const sample = rows[1] || [];
+    if (cStart < 0) cStart = sample.findIndex(v => /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(v));
+    if (cEnd < 0 && cStart >= 0 && /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(sample[cStart + 1] || '')) cEnd = cStart + 1;
+    if (cDur < 0) cDur = sample.findIndex(v => /^\d{1,3}:\d{2}(:\d{2})?$/.test(v));
+    if (cName < 0) cName = cStart === 0 ? -1 : 0;
+
+    const recs = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const name = (cName >= 0 && r[cName]) ? r[cName] : '英語';
+      const startStr = cStart >= 0 ? r[cStart] : '';
+      const endStr = cEnd >= 0 ? r[cEnd] : '';
+      const startMs = parseDateTimeMs(startStr);
+      const endMs = parseDateTimeMs(endStr);
+      const sec = parseDurationSec(cDur >= 0 ? r[cDur] : '', cMin >= 0 ? r[cMin] : '', startMs, endMs);
+      if (sec <= 0 || isNaN(startMs)) continue;
+      const hasTime = /\d{1,2}:\d{2}/.test(startStr);
+      const spans = hasTime
+        ? WC.splitSpanByDay(startMs, (!isNaN(endMs) && endMs > startMs) ? endMs : (startMs + sec * 1000))
+        : [{ day: WC.dayAt(startMs + 12 * 3600e3), sec: sec }];
+      recs.push({ name: name, spans: spans, sec: sec });
+    }
+    return recs;
+  }
+
+  let pendingCsvRecs = [];
+  function openCsvPreview(recs) {
+    pendingCsvRecs = recs;
+    const byAct = {};
+    recs.forEach(r => {
+      const a = byAct[r.name] || (byAct[r.name] = { count: 0, sec: 0 });
+      a.count++; a.sec += r.sec;
+    });
+    const names = Object.keys(byAct);
+    const hasEngKeyword = names.some(n => /英|eng|study|勉強|学習|単語|word|toeic|toefl|ielts/i.test(n));
+    const actsEl = $('csvActs');
+    actsEl.innerHTML = '';
+    names.forEach(n => {
+      const checked = names.length === 1 || !hasEngKeyword || /英|eng|study|勉強|学習|単語|word|toeic|toefl|ielts/i.test(n);
+      const label = document.createElement('label');
+      label.className = 'csv-act';
+      const left = document.createElement('span');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = n; cb.checked = checked;
+      cb.onchange = updateCsvPreview;
+      left.appendChild(cb);
+      left.appendChild(document.createTextNode(' ' + n));
+      const right = document.createElement('small');
+      right.textContent = `${WC.fmtHm(byAct[n].sec)} (${byAct[n].count}件)`;
+      label.appendChild(left);
+      label.appendChild(right);
+      actsEl.appendChild(label);
+    });
+    $('csvBox').hidden = false;
+    updateCsvPreview();
+  }
+
+  function getSelectedCsvDayMap() {
+    const selectedNames = new Set(
+      Array.from(document.querySelectorAll('#csvActs input:checked')).map(c => c.value)
+    );
+    const daySec = {};
+    pendingCsvRecs.forEach(r => {
+      if (!selectedNames.has(r.name)) return;
+      r.spans.forEach(sp => { daySec[sp.day] = (daySec[sp.day] || 0) + sp.sec; });
+    });
+    return daySec;
+  }
+
+  function updateCsvPreview() {
+    const daySec = getSelectedCsvDayMap();
+    const days = Object.keys(daySec);
+    const totalSec = days.reduce((s, d) => s + daySec[d], 0);
+    $('csvPreview').textContent = days.length
+      ? `対象: ${days.length}日分 ・ 合計 ${WC.fmtHm(totalSec)}`
+      : '取り込む項目にチェックを入れてください';
+    $('csvApply').disabled = !days.length;
+  }
+
+  if ($('csvBtn')) {
+    $('csvBtn').onclick = () => { $('csvFile').value = ''; $('csvFile').click(); };
+    $('csvCancel').onclick = () => { $('csvBox').hidden = true; pendingCsvRecs = []; };
+    $('csvFile').onchange = async e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const buf = await file.arrayBuffer();
+        let text = new TextDecoder('utf-8').decode(buf);
+        if (text.indexOf('\uFFFD') >= 0) {
+          try { text = new TextDecoder('shift_jis').decode(buf); } catch (err) {}
+        }
+        const recs = extractRecordsFromCsv(text);
+        if (!recs.length) { toast('CSVから日時・時間データを読み取れませんでした'); return; }
+        openCsvPreview(recs);
+      } catch (err) {
+        console.error('CSV load', err);
+        toast('CSVの読み込みに失敗しました');
+      }
+    };
+    $('csvApply').onclick = () => {
+      const daySec = getSelectedCsvDayMap();
+      const imported = load(LS.imported, {});
+      let addedDays = 0, addedSec = 0;
+      Object.keys(daySec).sort().forEach(day => {
+        const target = Math.round(daySec[day]);
+        const prev = imported[day] || 0;
+        const delta = target - prev;
+        if (delta <= 0) return;
+        imported[day] = target;
+        addedDays++;
+        addedSec += delta;
+        WC.enqueue({
+          kind: 'session', id: WC.uid(), day: day, activeSec: delta,
+          cards: 0, swipes: 0, flips: 0, speaks: 0, device: 'csv-import'
+        });
+      });
+      save(LS.imported, imported);
+      $('csvBox').hidden = true;
+      pendingCsvRecs = [];
+      render();
+      if (!addedDays) {
+        toast('すでに同じデータが取り込み済みです');
+        return;
+      }
+      toast(`${addedDays}日分（${WC.fmtHm(addedSec)}）を引き継ぎました`);
+      WC.flush().then(() => sync(false)).catch(() => {});
+    };
+  }
+
   function showQuote() { WC.fillQuote(WC.quoteOfDay(WC.today(), summary.quotes)); }
 
   /* ---------- 起動: キャッシュで即表示 → 裏で更新 ---------- */
-  try { showQuote(); render(); } catch (e) { console.error('init', e); }
+  try { showQuote(); renderTimer(); render(); } catch (e) { console.error('init', e); }
   sync(false);
   try {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(e => console.error('SW', e));

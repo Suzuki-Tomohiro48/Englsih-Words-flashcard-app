@@ -118,3 +118,11 @@ a.hbtn { text-decoration: none; display: inline-block; }
 .qactions { margin-top: 18px; display: flex; gap: 10px; align-items: center; justify-content: center; }
 .qactions .primary { flex: 1; padding: 13px; border-radius: 12px; border: 0; background: #2563eb; color: #fff; font-size: 15px; font-weight: 700; }
 .qactions .speak.sm { width: 44px; height: 44px; font-size: 20px; margin: 0; }
+
+/* ---------- 勉強時間タイマーボタン ---------- */
+header { gap: 6px; padding: 10px 12px; }
+.header-right { gap: 6px; }
+#daily { overflow: hidden; text-overflow: ellipsis; }
+.timer-btn { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; padding: 6px 10px; border-color: #22c55e88; color: #86efac; cursor: pointer; }
+.timer-btn.running { background: #dc2626; border-color: #ef4444; color: #fff; animation: pulse-rec 1.8s ease-in-out infinite; }
+@keyframes pulse-rec { 50% { opacity: .82; } }

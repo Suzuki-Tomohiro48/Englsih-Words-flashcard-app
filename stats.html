@@ -45,6 +45,36 @@
     </div>
   </section>
 
+  <section class="panel timer-panel">
+    <div class="panel-head">
+      <h2>⏱ 英語の勉強時間</h2>
+      <button id="csvBtn" class="mini-btn" type="button">📥 CSV引き継ぎ</button>
+      <input type="file" id="csvFile" accept=".csv,text/csv,text/plain" hidden>
+    </div>
+    <div class="timer-box">
+      <div class="timer-clock" id="timerClock">00:00</div>
+      <div class="timer-actions">
+        <button id="timerToggle" class="timer-main" type="button">▶ 計測を開始</button>
+        <button id="timerCancel" class="timer-cancel" type="button" hidden>破棄</button>
+      </div>
+    </div>
+    <div class="cards three">
+      <div class="stat sub"><b id="tmToday">0分</b><span>今日の勉強</span></div>
+      <div class="stat sub"><b id="tmWeek">0分</b><span>今週の勉強</span></div>
+      <div class="stat sub"><b id="tmTotal">0時間</b><span>累計勉強時間</span></div>
+    </div>
+    <div id="csvBox" class="csv-box" hidden>
+      <div class="csv-title">Simple Time Tracker CSV取込</div>
+      <div class="csv-sub">「英語」として引き継ぐ項目を選択してください：</div>
+      <div id="csvActs" class="csv-acts"></div>
+      <div id="csvPreview" class="csv-preview"></div>
+      <div class="csv-actions">
+        <button id="csvCancel" type="button">キャンセル</button>
+        <button id="csvApply" class="primary" type="button">この内容で取り込む</button>
+      </div>
+    </div>
+  </section>
+
   <section class="cards">
     <div class="stat"><b id="stToday">-</b><span>今日の学習<br>(分)</span></div>
     <div class="stat"><b id="stWeekWords">-</b><span>今週の語数</span></div>

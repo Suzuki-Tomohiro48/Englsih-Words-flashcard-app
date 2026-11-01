@@ -6,7 +6,8 @@
 
   const LS = {
     words: 'wc_words', state: 'wc_state', queue: 'wc_queue', daily: 'wc_daily',
-    summary: 'wc_summary', quoteSeen: 'wc_quote_seen', device: 'wc_device', metric: 'wc_stats_metric'
+    summary: 'wc_summary', quoteSeen: 'wc_quote_seen', device: 'wc_device', metric: 'wc_stats_metric',
+    timer: 'wc_timer', imported: 'wc_imported'
   };
   function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 保存不可でも続行 */ } }
@@ -15,7 +16,22 @@
   const pad = n => (n < 10 ? '0' : '') + n;
   const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const parts = day => day.split('-').map(Number);
-  function today() { return fmt(new Date(Date.now() - DAY_START * 3600e3)); }
+  function dayAt(ms) { return fmt(new Date((ms != null ? ms : Date.now()) - DAY_START * 3600e3)); }
+  function today() { return dayAt(Date.now()); }
+  function splitSpanByDay(startMs, endMs) {
+    const out = [];
+    let cur = startMs;
+    while (cur < endMs) {
+      const shifted = new Date(cur - DAY_START * 3600e3);
+      const day = fmt(shifted);
+      const nextCut = new Date(shifted.getFullYear(), shifted.getMonth(), shifted.getDate() + 1, DAY_START, 0, 0, 0).getTime();
+      const segEnd = Math.min(endMs, nextCut > cur ? nextCut : endMs);
+      const sec = Math.round((segEnd - cur) / 1000);
+      if (sec > 0) out.push({ day: day, sec: sec });
+      cur = segEnd;
+    }
+    return out;
+  }
   function addDays(day, n) {
     const p = parts(day), d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n));
     return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
@@ -173,10 +189,63 @@
     }
   }
 
+  /* ---------- 勉強時間タイマー（画面を閉じても継続・手動ボタン管理） ---------- */
+  function getTimer() {
+    const t = load(LS.timer, null);
+    return (t && typeof t.startMs === 'number' && t.startMs > 0) ? t : null;
+  }
+  function startTimer() {
+    let t = getTimer();
+    if (!t) { t = { startMs: Date.now() }; save(LS.timer, t); }
+    return t;
+  }
+  function cancelTimer() {
+    try { localStorage.removeItem(LS.timer); } catch (e) {}
+  }
+  function timerElapsed() {
+    const t = getTimer();
+    return t ? Math.max(0, Math.floor((Date.now() - t.startMs) / 1000)) : 0;
+  }
+  function stopTimer(extra) {
+    const t = getTimer();
+    if (!t) return 0;
+    cancelTimer();
+    const endMs = Date.now();
+    const totalSec = Math.max(0, Math.round((endMs - t.startMs) / 1000));
+    if (totalSec < 1) return 0;
+    const ex = extra || {};
+    const spans = splitSpanByDay(t.startMs, endMs);
+    spans.forEach((sp, i) => {
+      enqueue({
+        kind: 'session', id: uid(), day: sp.day, activeSec: sp.sec,
+        cards: i === 0 ? (ex.cards || 0) : 0,
+        swipes: i === 0 ? (ex.swipes || 0) : 0,
+        flips: i === 0 ? (ex.flips || 0) : 0,
+        speaks: i === 0 ? (ex.speaks || 0) : 0,
+        device: deviceId()
+      });
+    });
+    flush().catch(() => { /* オフライン時は次回再送 */ });
+    return totalSec;
+  }
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+  }
+  function fmtHm(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    if (sec < 60) return sec + '秒';
+    const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    if (h === 0) return m + '分';
+    return m > 0 ? h + '時間' + m + '分' : h + '時間';
+  }
+
   window.WC = {
     LS, load, save,
-    today, addDays, diffDays, dayOfWeek, shortDay, uid, deviceId, hash,
+    today, dayAt, splitSpanByDay, addDays, diffDays, dayOfWeek, shortDay, uid, deviceId, hash,
     apiGet, apiPost, getQueue, enqueue, flush,
+    getTimer, startTimer, stopTimer, cancelTimer, timerElapsed, fmtClock, fmtHm,
     canSpeak: !!synth, speak, splitByLang,
     quoteOfDay, fillQuote
   };

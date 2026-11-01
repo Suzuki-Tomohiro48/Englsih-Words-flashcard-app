@@ -57,26 +57,50 @@
   $('autoSpeak').checked = !!state.autoSpeak && WC.canSpeak;
   $('autoSpeak').onchange = e => { state.autoSpeak = e.target.checked; save(LS.state, state); };
 
-  /* ---------- 学習セッションの記録（時間・スワイプ数など） ---------- */
-  const sess = { swipes: 0, flips: 0, speaks: 0, seen: new Set(), active: 0 };
-  let lastAct = Date.now();
-  ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
-    window.addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true }));
-  // 画面が見えていて、直近30秒以内に操作があった時間だけを「学習時間」にする
-  setInterval(() => { if (document.visibilityState === 'visible' && Date.now() - lastAct < 30000) sess.active++; }, 1000);
+  /* ---------- 勉強時間タイマー（手動ボタン管理） & 操作回数記録 ---------- */
+  const sess = { swipes: 0, flips: 0, speaks: 0, seen: new Set() };
+
+  function renderTimerBtn() {
+    const btn = $('timerBtn');
+    if (!btn) return;
+    const on = !!WC.getTimer();
+    btn.classList.toggle('running', on);
+    btn.textContent = on ? ('⏹ ' + WC.fmtClock(WC.timerElapsed())) : '▶ 計測';
+  }
+  if ($('timerBtn')) {
+    $('timerBtn').onclick = () => {
+      if (WC.getTimer()) {
+        const sec = WC.stopTimer({ cards: sess.seen.size, swipes: sess.swipes, flips: sess.flips, speaks: sess.speaks });
+        sess.swipes = sess.flips = sess.speaks = 0;
+        sess.seen = new Set();
+        renderTimerBtn();
+        toast(sec > 0 ? ('⏱ ' + WC.fmtHm(sec) + ' を記録しました') : '計測を終了しました');
+      } else {
+        WC.startTimer();
+        renderTimerBtn();
+        toast('⏱ 計測を開始しました');
+      }
+    };
+  }
+  setInterval(renderTimerBtn, 1000);
+  window.addEventListener('storage', e => { if (!e.key || e.key === LS.timer) renderTimerBtn(); });
+  renderTimerBtn();
 
   function flushSession() {
-    if (!(sess.active || sess.swipes || sess.flips || sess.seen.size)) return;
+    if (!(sess.swipes || sess.flips || sess.seen.size)) return;
     WC.enqueue({
       kind: 'session', id: WC.uid(), day: WC.today(),
-      cards: sess.seen.size, activeSec: sess.active, swipes: sess.swipes, flips: sess.flips, speaks: sess.speaks,
+      cards: sess.seen.size, activeSec: 0, swipes: sess.swipes, flips: sess.flips, speaks: sess.speaks,
       device: WC.deviceId()
     });
-    sess.swipes = sess.flips = sess.speaks = sess.active = 0;
+    sess.swipes = sess.flips = sess.speaks = 0;
     sess.seen = new Set();
   }
   function flushAll(keepalive) { flushSession(); WC.flush({ keepalive: !!keepalive }).catch(() => { /* 後で再送 */ }); }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushAll(true); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAll(true);
+    else renderTimerBtn();
+  });
   window.addEventListener('pagehide', () => flushAll(true));
   setInterval(() => flushAll(false), 5 * 60 * 1000);
 

@@ -89,3 +89,33 @@ header { display: flex; justify-content: space-between; align-items: center; pad
   opacity: 0; transition: .25s; pointer-events: none;
 }
 #toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* ---------- 勉強時間タイマー & CSV取込パネル ---------- */
+.header-right { display: flex; align-items: center; gap: 8px; }
+a.hbtn { text-decoration: none; display: inline-block; }
+.mini-btn { background: #0f172a; border: 1px solid #475569; color: #cbd5e1; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+.timer-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #0f172a; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+.timer-clock { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; color: #94a3b8; }
+.timer-clock.running { color: #4ade80; }
+.timer-actions { display: flex; gap: 8px; align-items: center; }
+.timer-main { border: 0; border-radius: 12px; padding: 11px 18px; font-size: 14px; font-weight: 700; background: #16a34a; color: #fff; cursor: pointer; }
+.timer-main.running { background: #dc2626; animation: pulse-rec 1.8s ease-in-out infinite; }
+.timer-cancel { border: 1px solid #475569; border-radius: 10px; padding: 9px 10px; font-size: 12px; background: transparent; color: #94a3b8; cursor: pointer; }
+.timer-cancel[hidden] { display: none; }
+@keyframes pulse-rec { 50% { opacity: .82; } }
+.cards.three { grid-template-columns: repeat(3, 1fr); }
+.stat.sub { background: #0f172a; padding: 10px 6px; }
+.stat.sub b { font-size: 16px; }
+
+.csv-box { margin-top: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 14px; padding: 14px; }
+.csv-box[hidden] { display: none; }
+.csv-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.csv-sub { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+.csv-acts { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; margin-bottom: 10px; }
+.csv-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #1e293b; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.csv-act small { color: #94a3b8; font-size: 11px; }
+.csv-preview { font-size: 12px; color: #93c5fd; margin-bottom: 10px; font-weight: 700; }
+.csv-actions { display: flex; gap: 8px; }
+.csv-actions button { flex: 1; padding: 10px; border-radius: 10px; border: 0; background: #334155; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.csv-actions .primary { background: #2563eb; }
+.csv-actions button[disabled] { opacity: .5; pointer-events: none; }
